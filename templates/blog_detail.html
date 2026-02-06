@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}
+<p class="blog-category">
+    <strong>Category:</strong> {{ blog.category }}
+</p>
+{{ blog.title }} · Central Platform{% endblock %}
+
+{% block content %}
+<section class="page">
+    <article class="card card-detail">
+        {% if blog.image %}
+            <div class="detail-image">
+                <img src="{{ blog.image.url }}" alt="{{ blog.title }}">
+            </div>
+        {% endif %}
+
+        <div class="card-body">
+            <h1 class="card-title">{{ blog.title }}</h1>
+            <p class="card-meta">
+                By {{ blog.author.username }} · {{ blog.created_at|date:"M d, Y H:i" }}
+                {% if user.is_authenticated and user.role == 'admin' %}
+                    · <span class="badge badge-pill">{{ blog.status|title }}</span>
+                {% endif %}
+            </p>
+
+            <div class="detail-content">
+                {{ blog.content|linebreaks }}
+            </div>
+
+            <div class="detail-actions">
+                <a href="{% url 'blogs:blog_list' %}" class="btn btn-ghost btn-sm">← Back to list</a>
+
+                {% if user.is_authenticated %}
+                   {% if user == blog.author or user.role == 'admin' %}
+                     <span class="spacer"></span>
+                     <a href="{% url 'blogs:blog_update' blog.pk %}" class="btn btn-outline btn-sm">
+                          Edit
+                     </a>
+                      <form method="post" action="{% url 'blogs:blog_delete' blog.pk %}">
+                          {% csrf_token %}
+                          <button type="submit" class="btn btn-danger btn-sm"
+                                  onclick="return confirm('Delete this blog?');">
+                             Delete
+                         </button>
+                         </form>
+                     {% endif %}
+                 {% endif %}
+            </div>
+        </div>
+    </article>
+</section>
+{% endblock %}
