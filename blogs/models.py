@@ -5,8 +5,10 @@ from django.db import models
 class Blog(models.Model):
 
     STATUS_CHOICES = (
-        ("draft", "Draft"),
-        ("published", "Published"),
+        ('draft', 'Draft'),
+        ('pending', 'Pending Review'),
+        ('published', 'Published'),
+        ('rejected', 'Rejected'),
     )
 
     CATEGORY_CHOICES = (
@@ -23,9 +25,10 @@ class Blog(models.Model):
     title = models.CharField(max_length=255)
     content = models.TextField()
 
-    # ✅ NEW FIELD FOR AI CATEGORY
+    # ✅ AI Category
     category = models.CharField(
         max_length=50,
+        choices=CATEGORY_CHOICES,
         default="General",
         blank=True
     )
@@ -37,13 +40,30 @@ class Blog(models.Model):
     )
 
     image = models.ImageField(
-        upload_to="blog_images/", blank=True, null=True
+        upload_to="blog_images/",
+        blank=True,
+        null=True
     )
 
+    # ✅ Status must allow 'published' (9 chars)
     status = models.CharField(
-        max_length=10,
+        max_length=20,
         choices=STATUS_CHOICES,
         default="draft"
+    )
+
+    # ✅ Role-based approval fields
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="approved_blogs"
+    )
+
+    approved_at = models.DateTimeField(
+        null=True,
+        blank=True
     )
 
     created_at = models.DateTimeField(auto_now_add=True)

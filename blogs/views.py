@@ -15,30 +15,34 @@ def blog_list(request):
     """
     List blogs with pagination and search on title.
 
-    - Non-authenticated or non-admin users see only published blogs.
-    - Admins see all blogs.
+    - Public users see only published blogs
+    - Staff/Admin users see all blogs
     """
-    blogs = Blog.objects.all()
 
-    # Filter by published for non-admin
-    if not request.user.is_authenticated or getattr(request.user, "role", "user") != "admin":
+    blogs = Blog.objects.all().order_by("-created_at")
+
+    # Role Based Visibility
+    if not request.user.is_authenticated or not request.user.is_staff:
         blogs = blogs.filter(status="published")
 
-    # Search by title via ?q=
+    # Search
     query = request.GET.get("q")
     if query:
         blogs = blogs.filter(title__icontains=query)
 
-    paginator = Paginator(blogs, 5)  # 5 blogs per page
+    paginator = Paginator(blogs, 5)
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
-    context = {
-        "page_obj": page_obj,
-        "blogs": page_obj,
-        "query": query or "",
-    }
-    return render(request, "blog_list.html", context)
+    return render(
+        request,
+        "blog_list.html",
+        {
+            "blogs": page_obj,
+            "page_obj": page_obj,
+            "query": query or "",
+        },
+    )
 
 
 def blog_detail(request, pk):
@@ -61,57 +65,101 @@ def blog_detail(request, pk):
 
 
 @login_required
-def blog_create(request):
-    """
-    Create a new blog. Author is the logged-in user.
-    AI automatically assigns category.
-    """
+def create_blog(request):
     if request.method == "POST":
-        form = BlogForm(request.POST, request.FILES)
+        form = BlogForm(request.POST, user=request.user)
         if form.is_valid():
             blog = form.save(commit=False)
             blog.author = request.user
-
-            # 🤖 AI CATEGORY DETECTION
-            try:
-                blog.category = detect_blog_category(
-                    blog.title,
-                    blog.content
-                )
-            except Exception:
-                blog.category = "General"
-
+            # Role based control
+            if request.user.is_staff:
+                blog.status = "published"
+            else:
+                blog.status = "pending"
             blog.save()
-
             messages.success(request, "Blog created successfully.")
             return redirect("blogs:blog_detail", pk=blog.pk)
     else:
-        form = BlogForm()
+        form = BlogForm(user=request.user)
+    
+    return render(request, "blog_form.html", {"form": form})
 
-    return render(request, "blog_form.html", {"form": form, "form_title": "Create Blog"})
+
+from django.utils import timezone
 
 
 @login_required
 def blog_update(request, pk):
-    """
-    Update existing blog.
-    Only the author or an admin can update.
-    """
+
     blog = get_object_or_404(Blog, pk=pk)
 
-    if request.user != blog.author and getattr(request.user, "role", "user") != "admin":
+    # Permission check
+    if request.user != blog.author and not request.user.is_staff:
         return HttpResponseForbidden("You are not allowed to edit this blog.")
 
     if request.method == "POST":
-        form = BlogForm(request.POST, request.FILES, instance=blog)
+
+        # ✅ VERY IMPORTANT — pass user into form
+        form = BlogForm(
+            request.POST,
+            request.FILES,
+            instance=blog,
+            user=request.user
+        )
+
         if form.is_valid():
-            form.save()
+            blog = form.save(commit=False)
+
+            action = request.POST.get("action")
+
+            # 👨‍💼 ADMIN ACTIONS
+            if request.user.is_staff:
+
+                if action == "publish":
+                    blog.status = "published"
+                    blog.approved_by = request.user
+                    blog.approved_at = timezone.now()
+
+                elif action == "reject":
+                    blog.status = "rejected"
+                    blog.approved_by = request.user
+                    blog.approved_at = timezone.now()
+
+                elif action == "draft":
+                    blog.status = "draft"
+
+            # 👤 NORMAL USER ACTIONS
+            else:
+
+                if action == "submit":
+                    blog.status = "pending"
+
+                elif action == "draft":
+                    blog.status = "draft"
+
+                # 🔒 SECURITY BLOCK (very important)
+                if blog.status not in ["draft", "pending"]:
+                    blog.status = "pending"
+
+            blog.save()
+
             messages.success(request, "Blog updated successfully.")
             return redirect("blogs:blog_detail", pk=blog.pk)
-    else:
-        form = BlogForm(instance=blog)
 
-    return render(request, "blog_form.html", {"form": form, "form_title": "Edit Blog"})
+    else:
+
+        # ✅ VERY IMPORTANT — pass user into form
+        form = BlogForm(instance=blog, user=request.user)
+
+    return render(
+        request,
+        "blog_form.html",
+        {
+            "form": form,
+            "form_title": "Edit Blog",
+            "blog": blog,
+        },
+    )
 
 
 @login_required
@@ -132,3 +180,4 @@ def blog_delete(request, pk):
 
     # If not POST, redirect back to detail
     return redirect("blogs:blog_detail", pk=pk)
+

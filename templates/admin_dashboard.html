@@ -61,5 +61,50 @@
             {% endfor %}
         </div>
     </section>
+    <section class="section">
+    <div class="section-header">
+        <h2>Pending Blog Approvals</h2>
+    </div>
+
+    <div class="card-grid">
+
+        {% for blog in pending_blogs %}
+        <article class="card card-blog">
+            <div class="card-body">
+
+                <h3 class="card-title">
+                    <a href="{% url 'blogs:blog_detail' blog.pk %}">
+                        {{ blog.title }}
+                    </a>
+                </h3>
+
+                <p class="card-meta">
+                    {{ blog.author.username }} · 
+                    {{ blog.created_at|date:"M d, Y" }}
+                </p>
+
+                <div style="margin-top:10px; display:flex; gap:8px;">
+
+                    <a href="{% url 'adminpanel:approve_blog' blog.id %}"
+                       class="btn btn-success btn-sm">
+                        Approve
+                    </a>
+
+                    <a href="{% url 'adminpanel:reject_blog' blog.id %}"
+                       class="btn btn-danger btn-sm">
+                        Reject
+                    </a>
+
+                </div>
+
+            </div>
+        </article>
+        {% empty %}
+        <p class="muted">No blogs waiting for approval.</p>
+        {% endfor %}
+
+    </div>
+</section>
+
 </section>
 {% endblock %}
